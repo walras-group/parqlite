@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 import duckdb
@@ -5,9 +6,102 @@ import pandas as pd
 import pytest
 
 from parquetdb import connect
-from parquetdb.duckdb_backend import DuckDBBackend
+from parquetdb.duckdb_backend import DuckDBBackend, duckdb_ui_init_sql
 from parquetdb.errors import QueryBackendError
 from parquetdb.iceberg import IcebergStore
+
+
+class FakeStore:
+    def __init__(self, metadata_by_table: dict[str, str] | None = None):
+        self.metadata_by_table = metadata_by_table or {}
+
+    def tables(self) -> list[str]:
+        return sorted(self.metadata_by_table)
+
+    def table_metadata_location(self, name: str) -> str:
+        return self.metadata_by_table[name]
+
+
+def test_duckdb_ui_init_sql_loads_iceberg_with_no_tables() -> None:
+    assert duckdb_ui_init_sql(FakeStore()) == "INSTALL iceberg;\nLOAD iceberg;\n"
+
+
+def test_duckdb_ui_init_sql_registers_current_tables_as_views() -> None:
+    sql = duckdb_ui_init_sql(
+        FakeStore(
+            {
+                "select": "/tmp/has'quote/select/metadata.json",
+                "binance.klines": "/tmp/binance/klines/metadata.json",
+            }
+        )
+    )
+
+    assert "INSTALL iceberg;" in sql
+    assert "LOAD iceberg;" in sql
+    assert (
+        'CREATE OR REPLACE VIEW "select" AS '
+        "SELECT * FROM iceberg_scan('/tmp/has''quote/select/metadata.json');"
+    ) in sql
+    assert 'CREATE SCHEMA IF NOT EXISTS "binance";' in sql
+    assert (
+        'CREATE OR REPLACE VIEW "binance"."klines" AS '
+        "SELECT * FROM iceberg_scan('/tmp/binance/klines/metadata.json');"
+    ) in sql
+
+
+def test_duckdb_ui_launcher_runs_duckdb_with_generated_init_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess:
+        captured["command"] = command
+        captured["check"] = check
+        captured["sql"] = Path(command[2]).read_text(encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("parquetdb.duckdb_backend.subprocess.run", fake_run)
+
+    backend = DuckDBBackend(FakeStore({"items": "/tmp/items/metadata.json"}))
+    backend.open_ui()
+
+    command = captured["command"]
+    assert command[0] == "duckdb"
+    assert command[1] == "-init"
+    assert command[3] == "-ui"
+    assert captured["check"] is False
+    assert (
+        'CREATE OR REPLACE VIEW "items" AS '
+        "SELECT * FROM iceberg_scan('/tmp/items/metadata.json');"
+    ) in captured["sql"]
+
+
+def test_duckdb_ui_launcher_missing_cli_raises_query_backend_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess:
+        raise FileNotFoundError
+
+    monkeypatch.setattr("parquetdb.duckdb_backend.subprocess.run", fake_run)
+
+    backend = DuckDBBackend(FakeStore())
+
+    with pytest.raises(QueryBackendError, match="DuckDB CLI"):
+        backend.open_ui()
+
+
+def test_duckdb_ui_launcher_nonzero_exit_raises_query_backend_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(command, 7)
+
+    monkeypatch.setattr("parquetdb.duckdb_backend.subprocess.run", fake_run)
+
+    backend = DuckDBBackend(FakeStore())
+
+    with pytest.raises(QueryBackendError, match="status 7"):
+        backend.open_ui()
 
 
 def test_sql_refreshes_view_when_metadata_location_changes(tmp_path: Path) -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "parquetdb"
-version = "0.1.0"
+version = "0.1.1"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -13,6 +13,9 @@ dependencies = [
     "pyarrow>=24.0.0",
     "pyiceberg[pyiceberg-core,sql-sqlite]>=0.11.1",
 ]
+
+[project.scripts]
+parquetdb = "parquetdb.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12.0"]

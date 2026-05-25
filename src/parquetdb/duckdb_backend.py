@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import subprocess
+import tempfile
 from collections.abc import Iterable
+from pathlib import Path
 
 import duckdb
 
@@ -32,6 +35,29 @@ class DuckDBBackend:
 
     def close(self) -> None:
         self._connection.close()
+
+    def open_ui(self) -> None:
+        init_sql = duckdb_ui_init_sql(self._store)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            init_path = Path(temp_dir) / "parquetdb-duckdb-ui-init.sql"
+            init_path.write_text(init_sql, encoding="utf-8")
+
+            try:
+                result = subprocess.run(
+                    ["duckdb", "-init", str(init_path), "-ui"],
+                    check=False,
+                )
+            except FileNotFoundError as exc:
+                raise QueryBackendError(
+                    "DuckDB CLI is required to open the DuckDB UI. "
+                    "Install duckdb and make sure it is available on PATH."
+                ) from exc
+
+        if result.returncode != 0:
+            raise QueryBackendError(
+                f"DuckDB UI exited unsuccessfully with status {result.returncode}."
+            )
 
     def _ensure_iceberg_extension(self) -> None:
         if self._iceberg_extension_loaded:
@@ -90,12 +116,41 @@ class DuckDBBackend:
             self._registered_sql[name] = view_sql
 
 
+def duckdb_ui_init_sql(store: IcebergStore) -> str:
+    lines = [
+        "INSTALL iceberg;",
+        "LOAD iceberg;",
+    ]
+
+    for name in store.tables():
+        schema_sql = _create_view_schema_sql(name)
+        if schema_sql is not None:
+            lines.append(schema_sql)
+
+        metadata_location = store.table_metadata_location(name)
+        lines.append(
+            "CREATE OR REPLACE VIEW "
+            f"{_qualified_view_name(name)} AS "
+            f"SELECT * FROM iceberg_scan({_sql_string(metadata_location)});"
+        )
+
+    return "\n".join(lines) + "\n"
+
+
 def _ensure_view_schema(connection: duckdb.DuckDBPyConnection, name: str) -> None:
-    namespace, _ = parse_table_name(name)
-    if namespace == DEFAULT_NAMESPACE:
+    schema_sql = _create_view_schema_sql(name)
+    if schema_sql is None:
         return
 
-    connection.execute(f"create schema if not exists {_quoted_identifier(namespace)}")
+    connection.execute(schema_sql)
+
+
+def _create_view_schema_sql(name: str) -> str | None:
+    namespace, _ = parse_table_name(name)
+    if namespace == DEFAULT_NAMESPACE:
+        return None
+
+    return f"CREATE SCHEMA IF NOT EXISTS {_quoted_identifier(namespace)};"
 
 
 def _qualified_view_name(name: str) -> str:

@@ -1,0 +1,23 @@
+from __future__ import annotations
+
+import argparse
+from collections.abc import Sequence
+
+from parquetdb.ui import open_ui
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(prog="parquetdb")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    ui_parser = subparsers.add_parser("ui", help="Open DuckDB UI")
+    ui_parser.add_argument("path", help="parquetdb root directory")
+
+    args = parser.parse_args(argv)
+
+    if args.command == "ui":
+        open_ui(args.path)
+
+
+if __name__ == "__main__":
+    main()

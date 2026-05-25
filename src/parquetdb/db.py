@@ -86,6 +86,9 @@ class DB:
     ):
         return self._duckdb.sql(query, at=at)
 
+    def open_ui(self) -> None:
+        self._duckdb.open_ui()
+
     def tables(self) -> list[str]:
         return self._store.tables()
 
