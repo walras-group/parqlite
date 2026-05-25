@@ -1,0 +1,6 @@
+cn_market/
+__pycache__/
+crypto/
+examples/.binance-data/
+examples/BTCUSDT-*.csv
+examples/BTCUSDT-*.zip

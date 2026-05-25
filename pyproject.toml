@@ -1,0 +1,25 @@
+[project]
+name = "parquetdb"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "River-Walras", email = "nachuan.shi.quant@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "duckdb>=1.5.3",
+    "pandas>=3.0.3",
+    "pyarrow>=24.0.0",
+    "pyiceberg[pyiceberg-core,sql-sqlite]>=0.11.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.7,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.14",
+]
