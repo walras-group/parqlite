@@ -12,11 +12,17 @@ from parquetdb import connect, month
 
 DATA_DIR = Path(__file__).resolve().parent
 DOWNLOAD_DIR = DATA_DIR / ".binance-data"
-TABLE_NAME = "binance.klines"
-DATA_URLS = (
+KLINES_TABLE_NAME = "binance.klines"
+FUNDING_RATES_TABLE_NAME = "binance.funding_rates"
+KLINE_DATA_URLS = (
     "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1m/BTCUSDT-1m-2026-02.zip",
     "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1m/BTCUSDT-1m-2026-03.zip",
     "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1m/BTCUSDT-1m-2026-04.zip",
+)
+FUNDING_RATE_DATA_URLS = (
+    "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-02.zip",
+    "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-03.zip",
+    "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-04.zip",
 )
 
 KLINE_SCHEMA = {
@@ -35,6 +41,12 @@ KLINE_SCHEMA = {
     "ignore": "int",
 }
 
+FUNDING_RATE_SCHEMA = {
+    "calc_time": "timestamptz",
+    "funding_interval_hours": "int",
+    "last_funding_rate": "float",
+}
+
 METADATA_RETENTION_PROPERTIES = {
     "write.metadata.delete-after-commit.enabled": True,
     "write.metadata.previous-versions-max": 3,
@@ -42,34 +54,48 @@ METADATA_RETENTION_PROPERTIES = {
 
 
 def main() -> None:
-    zip_paths = _download_klines()
+    kline_zip_paths = _download_archives(KLINE_DATA_URLS)
+    funding_rate_zip_paths = _download_archives(FUNDING_RATE_DATA_URLS)
 
     db = connect("./crypto")
     try:
         db.create_namespace("binance")
         db.create_table(
-            TABLE_NAME,
+            KLINES_TABLE_NAME,
             schema=KLINE_SCHEMA,
             partition_by=[month("opentime")],
             properties=METADATA_RETENTION_PROPERTIES,
         )
+        db.create_table(
+            FUNDING_RATES_TABLE_NAME,
+            schema=FUNDING_RATE_SCHEMA,
+            partition_by=[month("calc_time")],
+            properties=METADATA_RETENTION_PROPERTIES,
+        )
 
-        rows = 0
-        for zip_path in zip_paths:
+        kline_rows = 0
+        for zip_path in kline_zip_paths:
             dataframe = _read_klines_zip(zip_path)
-            db.append(TABLE_NAME, dataframe)
-            rows += len(dataframe)
+            db.append(KLINES_TABLE_NAME, dataframe)
+            kline_rows += len(dataframe)
 
-        print(f"imported {rows} rows into {TABLE_NAME}")
+        funding_rate_rows = 0
+        for zip_path in funding_rate_zip_paths:
+            dataframe = _read_funding_rates_zip(zip_path)
+            db.append(FUNDING_RATES_TABLE_NAME, dataframe)
+            funding_rate_rows += len(dataframe)
+
+        print(f"imported {kline_rows} rows into {KLINES_TABLE_NAME}")
+        print(f"imported {funding_rate_rows} rows into {FUNDING_RATES_TABLE_NAME}")
     finally:
         db.close()
 
 
-def _download_klines() -> list[Path]:
+def _download_archives(urls: tuple[str, ...]) -> list[Path]:
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
     zip_paths = []
-    for url in DATA_URLS:
+    for url in urls:
         zip_path = DOWNLOAD_DIR / url.rsplit("/", 1)[1]
         if not zip_path.exists():
             part_path = zip_path.with_suffix(f"{zip_path.suffix}.part")
@@ -106,6 +132,20 @@ def _read_klines_zip(path: Path) -> pd.DataFrame:
     )
     dataframe.insert(1, "symbol", path.stem.split("-", 1)[0])
     return dataframe[list(KLINE_SCHEMA)]
+
+
+def _read_funding_rates_zip(path: Path) -> pd.DataFrame:
+    with ZipFile(path) as zip_file:
+        csv_name = next(name for name in zip_file.namelist() if name.endswith(".csv"))
+        with zip_file.open(csv_name) as csv_file:
+            dataframe = pd.read_csv(csv_file)
+
+    dataframe["calc_time"] = pd.to_datetime(
+        (dataframe["calc_time"].astype("int64") // 1000) * 1000,
+        unit="ms",
+        utc=True,
+    )
+    return dataframe[list(FUNDING_RATE_SCHEMA)]
 
 
 if __name__ == "__main__":

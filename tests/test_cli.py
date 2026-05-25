@@ -4,16 +4,57 @@ from parquetdb.cli import main
 
 
 def test_main_dispatches_ui_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: dict[str, str] = {}
+    calls: list[tuple[str, str | None]] = []
 
-    def fake_open_ui(path: str) -> None:
-        calls["path"] = path
+    class FakeDB:
+        def open_ui(self) -> None:
+            calls.append(("open_ui", None))
 
-    monkeypatch.setattr("parquetdb.cli.open_ui", fake_open_ui)
+        def close(self) -> None:
+            calls.append(("close", None))
+
+    def fake_connect(path: str) -> FakeDB:
+        calls.append(("connect", path))
+        return FakeDB()
+
+    monkeypatch.setattr("parquetdb.cli.connect", fake_connect)
 
     main(["ui", "./data"])
 
-    assert calls == {"path": "./data"}
+    assert calls == [
+        ("connect", "./data"),
+        ("open_ui", None),
+        ("close", None),
+    ]
+
+
+def test_main_closes_db_when_open_ui_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str | None]] = []
+
+    class FakeDB:
+        def open_ui(self) -> None:
+            calls.append(("open_ui", None))
+            raise RuntimeError("boom")
+
+        def close(self) -> None:
+            calls.append(("close", None))
+
+    def fake_connect(path: str) -> FakeDB:
+        calls.append(("connect", path))
+        return FakeDB()
+
+    monkeypatch.setattr("parquetdb.cli.connect", fake_connect)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        main(["ui", "./data"])
+
+    assert calls == [
+        ("connect", "./data"),
+        ("open_ui", None),
+        ("close", None),
+    ]
 
 
 def test_main_requires_subcommand() -> None:

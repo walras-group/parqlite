@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 
-from parquetdb.ui import open_ui
+from parquetdb.db import connect
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -16,7 +16,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.command == "ui":
-        open_ui(args.path)
+        db = connect(args.path)
+        try:
+            db.open_ui()
+        finally:
+            db.close()
 
 
 if __name__ == "__main__":
