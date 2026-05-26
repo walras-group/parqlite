@@ -11,6 +11,7 @@ from pyiceberg.catalog import load_catalog
 from pyiceberg.catalog.sql import SqlCatalog
 from pyiceberg.exceptions import (
     NamespaceAlreadyExistsError as IcebergNamespaceAlreadyExistsError,
+    NamespaceNotEmptyError as IcebergNamespaceNotEmptyError,
     NoSuchTableError,
     NoSuchNamespaceError as IcebergNamespaceNotFoundError,
     TableAlreadyExistsError as IcebergTableAlreadyExistsError,
@@ -21,6 +22,7 @@ from pyiceberg.utils.properties import property_as_int
 
 from parqlite.errors import (
     NamespaceAlreadyExistsError,
+    NamespaceNotEmptyError,
     NamespaceNotFoundError,
     OrphanFileError,
     SchemaError,
@@ -92,6 +94,12 @@ def _table_name_from_identifier(identifier: tuple[str, ...]) -> str:
     return f"{namespace}.{table}"
 
 
+def _namespace_name_from_identifier(identifier: str | tuple[str, ...]) -> str:
+    if isinstance(identifier, str):
+        return identifier
+    return ".".join(identifier)
+
+
 class IcebergStore:
     def __init__(self, root: str | Path):
         self.root = Path(root).expanduser().resolve()
@@ -109,6 +117,26 @@ class IcebergStore:
         except IcebergNamespaceAlreadyExistsError as exc:
             raise NamespaceAlreadyExistsError(
                 f"namespace already exists: {namespace}"
+            ) from exc
+
+    def list_namespaces(self) -> list[str]:
+        return sorted(
+            _namespace_name_from_identifier(identifier)
+            for identifier in self.catalog.list_namespaces()
+        )
+
+    def drop_namespace(self, name: str) -> None:
+        namespace = validate_namespace_name(name)
+        if namespace == DEFAULT_NAMESPACE:
+            raise SchemaError("default namespace cannot be dropped")
+
+        try:
+            self.catalog.drop_namespace(namespace)
+        except IcebergNamespaceNotFoundError as exc:
+            raise NamespaceNotFoundError(f"namespace not found: {namespace}") from exc
+        except IcebergNamespaceNotEmptyError as exc:
+            raise NamespaceNotEmptyError(
+                f"namespace is not empty: {namespace}"
             ) from exc
 
     def create_table(

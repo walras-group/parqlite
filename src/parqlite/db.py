@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
+from types import TracebackType
 from typing import Any
 
 from parqlite.duckdb_backend import DuckDBBackend
@@ -37,8 +38,25 @@ class DB:
         self._store = IcebergStore(path)
         self._duckdb = DuckDBBackend(self._store)
 
+    def __enter__(self) -> DB:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None:
+        self.close()
+
     def create_namespace(self, name: str) -> None:
         self._store.create_namespace(name)
+
+    def list_namespaces(self) -> list[str]:
+        return self._store.list_namespaces()
+
+    def drop_namespace(self, name: str) -> None:
+        self._store.drop_namespace(name)
 
     def create_table(
         self,
@@ -89,8 +107,14 @@ class DB:
     def open_ui(self) -> None:
         self._duckdb.open_ui()
 
+    def open_shell(self, query: str | None = None) -> None:
+        self._duckdb.open_shell(query)
+
     def tables(self) -> list[str]:
         return self._store.tables()
+
+    def table_exists(self, name: str) -> bool:
+        return self._store.table_exists(name)
 
     def schema(self, name: str) -> dict[str, str]:
         return schema_to_dict(self._store.load_table(name).schema())

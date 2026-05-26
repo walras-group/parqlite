@@ -101,6 +101,13 @@ Close the DuckDB connection when you are done:
 db.close()
 ```
 
+Or use `DB` as a context manager:
+
+```python
+with connect("./data") as db:
+    tables = db.tables()
+```
+
 ## Schemas
 
 Use `parqlite.types` helpers for schemas:
@@ -255,6 +262,7 @@ each SQL call.
 
 ```python
 tables = db.tables()
+exists = db.table_exists("items")
 schema = db.schema("items")
 properties = db.table_properties("items")
 ```
@@ -264,6 +272,43 @@ Drop a table:
 ```python
 db.drop_table("items")
 ```
+
+## Namespaces
+
+The `default` namespace always exists. Additional namespaces let you use table
+names such as `binance.klines`.
+
+```python
+db.create_namespace("binance")
+
+namespaces = db.list_namespaces()
+
+db.drop_namespace("binance")
+```
+
+`drop_namespace` only removes empty non-default namespaces.
+
+## CLI
+
+The CLI keeps the command shape `parqlite <command> <path> ...`:
+
+```bash
+parqlite ui ./data
+parqlite tables ./data
+parqlite schema ./data items
+parqlite sql ./data
+parqlite sql ./data "select * from items order by id"
+```
+
+`tables` runs a DuckDB catalog query after preloading the current parqlite
+tables as views, then displays table names with DuckDB's native output.
+
+`schema` runs DuckDB's native `DESCRIBE` command after preloading the current
+parqlite tables as views.
+
+`sql` starts DuckDB CLI with the current parqlite tables preloaded as views. If
+you pass a query, DuckDB runs it and exits. Without a query, DuckDB opens an
+interactive shell.
 
 ## Table Properties
 

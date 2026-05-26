@@ -37,6 +37,31 @@ class DuckDBBackend:
         self._connection.close()
 
     def open_ui(self) -> None:
+        self._run_duckdb_cli(["-ui"], "DuckDB UI")
+
+    def open_shell(self, query: str | None = None) -> None:
+        if query is None:
+            self._run_duckdb_cli([], "DuckDB CLI")
+            return
+
+        command = duckdb_ui_init_sql(self._store) + query
+        try:
+            result = subprocess.run(
+                ["duckdb", "-batch", "-c", command],
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            raise QueryBackendError(
+                "DuckDB CLI is required to run SQL. "
+                "Install duckdb and make sure it is available on PATH."
+            ) from exc
+
+        if result.returncode != 0:
+            raise QueryBackendError(
+                f"DuckDB CLI exited unsuccessfully with status {result.returncode}."
+            )
+
+    def _run_duckdb_cli(self, args: list[str], description: str) -> None:
         init_sql = duckdb_ui_init_sql(self._store)
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -45,18 +70,18 @@ class DuckDBBackend:
 
             try:
                 result = subprocess.run(
-                    ["duckdb", "-init", str(init_path), "-ui"],
+                    ["duckdb", "-init", str(init_path), *args],
                     check=False,
                 )
             except FileNotFoundError as exc:
                 raise QueryBackendError(
-                    "DuckDB CLI is required to open the DuckDB UI. "
+                    f"{description} requires the DuckDB CLI. "
                     "Install duckdb and make sure it is available on PATH."
                 ) from exc
 
         if result.returncode != 0:
             raise QueryBackendError(
-                f"DuckDB UI exited unsuccessfully with status {result.returncode}."
+                f"{description} exited unsuccessfully with status {result.returncode}."
             )
 
     def _ensure_iceberg_extension(self) -> None:
@@ -135,6 +160,24 @@ def duckdb_ui_init_sql(store: IcebergStore) -> str:
         )
 
     return "\n".join(lines) + "\n"
+
+
+def duckdb_describe_table_sql(name: str) -> str:
+    return f"DESCRIBE {_qualified_view_name(name)}"
+
+
+def duckdb_list_tables_sql() -> str:
+    return """
+SELECT
+    CASE
+        WHEN schema_name = 'main' THEN view_name
+        ELSE schema_name || '.' || view_name
+    END AS "Tables"
+FROM duckdb_views()
+WHERE database_name = 'memory'
+    AND NOT internal
+ORDER BY "Tables"
+""".strip()
 
 
 def _ensure_view_schema(connection: duckdb.DuckDBPyConnection, name: str) -> None:

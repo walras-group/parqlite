@@ -18,6 +18,10 @@ class NamespaceNotFoundError(ParqliteError):
     """Raised when a requested namespace does not exist."""
 
 
+class NamespaceNotEmptyError(ParqliteError):
+    """Raised when dropping a namespace that still contains tables."""
+
+
 class SchemaError(ParqliteError):
     """Raised when a declared schema is invalid."""
 

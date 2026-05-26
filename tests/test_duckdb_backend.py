@@ -6,7 +6,12 @@ import pandas as pd
 import pytest
 
 from parqlite import connect
-from parqlite.duckdb_backend import DuckDBBackend, duckdb_ui_init_sql
+from parqlite.duckdb_backend import (
+    DuckDBBackend,
+    duckdb_describe_table_sql,
+    duckdb_list_tables_sql,
+    duckdb_ui_init_sql,
+)
 from parqlite.errors import QueryBackendError
 from parqlite.iceberg import IcebergStore
 
@@ -49,6 +54,23 @@ def test_duckdb_ui_init_sql_registers_current_tables_as_views() -> None:
     ) in sql
 
 
+def test_duckdb_describe_table_sql_quotes_table_names() -> None:
+    assert duckdb_describe_table_sql("items") == 'DESCRIBE "items"'
+    assert (
+        duckdb_describe_table_sql("binance.funding_rates")
+        == 'DESCRIBE "binance"."funding_rates"'
+    )
+
+
+def test_duckdb_list_tables_sql_lists_registered_views() -> None:
+    sql = duckdb_list_tables_sql()
+
+    assert "FROM duckdb_views()" in sql
+    assert "schema_name || '.' || view_name" in sql
+    assert 'END AS "Tables"' in sql
+    assert 'ORDER BY "Tables"' in sql
+
+
 def test_duckdb_ui_launcher_runs_duckdb_with_generated_init_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -74,6 +96,56 @@ def test_duckdb_ui_launcher_runs_duckdb_with_generated_init_file(
         'CREATE OR REPLACE VIEW "items" AS '
         "SELECT * FROM iceberg_scan('/tmp/items/metadata.json');"
     ) in captured["sql"]
+
+
+def test_duckdb_shell_launcher_preloads_views_and_runs_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess:
+        captured["command"] = command
+        captured["check"] = check
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("parqlite.duckdb_backend.subprocess.run", fake_run)
+
+    backend = DuckDBBackend(FakeStore({"items": "/tmp/items/metadata.json"}))
+    backend.open_shell("select count(*) from items")
+
+    command = captured["command"]
+    assert command == [
+        "duckdb",
+        "-batch",
+        "-c",
+        command[3],
+    ]
+    assert captured["check"] is False
+    assert command[3].endswith("select count(*) from items")
+    assert (
+        'CREATE OR REPLACE VIEW "items" AS '
+        "SELECT * FROM iceberg_scan('/tmp/items/metadata.json');"
+    ) in command[3]
+
+
+def test_duckdb_shell_launcher_without_query_opens_interactive_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess:
+        captured["command"] = command
+        captured["check"] = check
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("parqlite.duckdb_backend.subprocess.run", fake_run)
+
+    backend = DuckDBBackend(FakeStore())
+    backend.open_shell()
+
+    command = captured["command"]
+    assert command == ["duckdb", "-init", command[2]]
+    assert captured["check"] is False
 
 
 def test_duckdb_ui_launcher_missing_cli_raises_query_backend_error(
@@ -131,6 +203,14 @@ def test_overwrite_replaces_visible_snapshot(tmp_path: Path) -> None:
     db.overwrite("items", pd.DataFrame({"id": [3], "name": ["c"]}))
 
     assert db.sql("select id, name from items").fetchall() == [(3, "c")]
+
+
+def test_sql_fetches_timestamptz_results(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+
+    rows = db.sql("select TIMESTAMPTZ '2024-01-01 00:00:00+00' as ts").fetchall()
+
+    assert rows[0][0].utcoffset() is not None
 
 
 def test_view_names_are_quoted(tmp_path: Path) -> None:

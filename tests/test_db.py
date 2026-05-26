@@ -9,6 +9,7 @@ import pytest
 from parqlite import IcebergTablePropertyKey, connect, types as t
 from parqlite.errors import (
     NamespaceAlreadyExistsError,
+    NamespaceNotEmptyError,
     NamespaceNotFoundError,
     SchemaError,
     SchemaMismatchError,
@@ -20,6 +21,35 @@ from parqlite.partitioning import month
 def test_exports_iceberg_table_property_key_literal() -> None:
     assert "history.expire.max-snapshot-age-ms" in get_args(IcebergTablePropertyKey)
     assert "write.metadata.previous-versions-max" in get_args(IcebergTablePropertyKey)
+
+
+def test_db_context_manager_closes_on_normal_exit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = connect(tmp_path)
+    calls: list[str] = []
+    monkeypatch.setattr(db._duckdb, "close", lambda: calls.append("close"))
+
+    with db as opened:
+        assert opened is db
+
+    assert calls == ["close"]
+
+
+def test_db_context_manager_closes_when_body_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = connect(tmp_path)
+    calls: list[str] = []
+    monkeypatch.setattr(db._duckdb, "close", lambda: calls.append("close"))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with db:
+            raise RuntimeError("boom")
+
+    assert calls == ["close"]
 
 
 def test_create_table_saves_reserved_metadata(tmp_path: Path) -> None:
@@ -114,6 +144,35 @@ def test_create_table_accepts_schema_type_helpers(tmp_path: Path) -> None:
     }
 
 
+def test_table_exists_returns_true_for_existing_table(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table("items", {"id": "long"})
+
+    assert db.table_exists("items") is True
+
+
+def test_table_exists_returns_false_for_missing_valid_table(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+
+    assert db.table_exists("items") is False
+
+
+def test_table_exists_supports_namespaced_tables(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_namespace("binance")
+    db.create_table("binance.klines", {"opentime": "long"})
+
+    assert db.table_exists("binance.klines") is True
+    assert db.table_exists("binance.trades") is False
+
+
+def test_table_exists_validates_table_name(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+
+    with pytest.raises(SchemaError):
+        db.table_exists("1items")
+
+
 def test_namespace_table_can_be_created_appended_and_queried(tmp_path: Path) -> None:
     db = connect(tmp_path)
 
@@ -155,6 +214,55 @@ def test_create_namespace_rejects_existing_namespace(tmp_path: Path) -> None:
         db.create_namespace("binance")
 
 
+def test_list_namespaces_includes_default_and_created_namespaces(
+    tmp_path: Path,
+) -> None:
+    db = connect(tmp_path)
+
+    assert db.list_namespaces() == ["default"]
+
+    db.create_namespace("binance")
+
+    assert db.list_namespaces() == ["binance", "default"]
+
+
+def test_drop_namespace_removes_empty_namespace(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_namespace("binance")
+
+    db.drop_namespace("binance")
+
+    assert db.list_namespaces() == ["default"]
+
+
+def test_drop_namespace_rejects_default_namespace(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+
+    with pytest.raises(SchemaError, match="default namespace cannot be dropped"):
+        db.drop_namespace("default")
+
+    assert db.list_namespaces() == ["default"]
+
+
+def test_drop_namespace_rejects_non_empty_namespace(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_namespace("binance")
+    db.create_table("binance.klines", {"opentime": "long"})
+
+    with pytest.raises(NamespaceNotEmptyError, match="namespace is not empty"):
+        db.drop_namespace("binance")
+
+    assert db.list_namespaces() == ["binance", "default"]
+    assert db.table_exists("binance.klines") is True
+
+
+def test_drop_namespace_rejects_missing_namespace(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+
+    with pytest.raises(NamespaceNotFoundError, match="namespace not found: binance"):
+        db.drop_namespace("binance")
+
+
 def test_table_and_namespace_names_must_be_valid_identifiers(tmp_path: Path) -> None:
     db = connect(tmp_path)
 
@@ -174,6 +282,9 @@ def test_table_and_namespace_names_must_be_valid_identifiers(tmp_path: Path) -> 
     for namespace_name in ["", "a.b", "1binance"]:
         with pytest.raises(SchemaError):
             db.create_namespace(namespace_name)
+
+        with pytest.raises(SchemaError):
+            db.drop_namespace(namespace_name)
 
 
 def test_reserved_metadata_must_reference_schema_fields(tmp_path: Path) -> None:

@@ -1,6 +1,6 @@
 [project]
 name = "parqlite"
-version = "0.1.1"
+version = "0.1.2"
 description = "Add your description here"
 readme = "README.md"
 authors = [
@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=3.0.3",
     "pyarrow>=24.0.0",
     "pyiceberg[pyiceberg-core,sql-sqlite]>=0.11.1",
+    "pytz>=2026.2",
 ]
 
 [project.scripts]
