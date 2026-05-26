@@ -7,7 +7,9 @@ def main():
     tables = db.tables()
     print(tables)
 
-    df = db.sql(query="select * from binance.klines").df()
+    db.sql("SET TimeZone='UTC'")
+
+    df = db.sql(query="select * from binance.klines order by opentime").df()
 
     print(df)
 
@@ -15,23 +17,22 @@ def main():
 
     print("len snapshots: ", len(snapshots))
 
-    db.sql("SET TimeZone='UTC'")
     df = db.sql(
-        query="select * from binance.klines",
+        query="select * from binance.klines order by opentime",
         at={"binance.klines": snapshot_id(snapshots[0].snapshot_id)},
     ).df()
 
     print(df)
 
     df = db.sql(
-        query="select * from binance.klines",
+        query="select * from binance.klines order by opentime",
         at={"binance.klines": snapshot_id(snapshots[1].snapshot_id)},
     ).df()
 
     print(df)
 
     df = db.sql(
-        query="select * from binance.klines",
+        query="select * from binance.klines order by opentime",
         at={"binance.klines": snapshot_id(snapshots[2].snapshot_id)},
     ).df()
 
