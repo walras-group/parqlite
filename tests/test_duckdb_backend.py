@@ -5,10 +5,10 @@ import duckdb
 import pandas as pd
 import pytest
 
-from parquetdb import connect
-from parquetdb.duckdb_backend import DuckDBBackend, duckdb_ui_init_sql
-from parquetdb.errors import QueryBackendError
-from parquetdb.iceberg import IcebergStore
+from parqlite import connect
+from parqlite.duckdb_backend import DuckDBBackend, duckdb_ui_init_sql
+from parqlite.errors import QueryBackendError
+from parqlite.iceberg import IcebergStore
 
 
 class FakeStore:
@@ -60,7 +60,7 @@ def test_duckdb_ui_launcher_runs_duckdb_with_generated_init_file(
         captured["sql"] = Path(command[2]).read_text(encoding="utf-8")
         return subprocess.CompletedProcess(command, 0)
 
-    monkeypatch.setattr("parquetdb.duckdb_backend.subprocess.run", fake_run)
+    monkeypatch.setattr("parqlite.duckdb_backend.subprocess.run", fake_run)
 
     backend = DuckDBBackend(FakeStore({"items": "/tmp/items/metadata.json"}))
     backend.open_ui()
@@ -82,7 +82,7 @@ def test_duckdb_ui_launcher_missing_cli_raises_query_backend_error(
     def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess:
         raise FileNotFoundError
 
-    monkeypatch.setattr("parquetdb.duckdb_backend.subprocess.run", fake_run)
+    monkeypatch.setattr("parqlite.duckdb_backend.subprocess.run", fake_run)
 
     backend = DuckDBBackend(FakeStore())
 
@@ -96,7 +96,7 @@ def test_duckdb_ui_launcher_nonzero_exit_raises_query_backend_error(
     def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(command, 7)
 
-    monkeypatch.setattr("parquetdb.duckdb_backend.subprocess.run", fake_run)
+    monkeypatch.setattr("parqlite.duckdb_backend.subprocess.run", fake_run)
 
     backend = DuckDBBackend(FakeStore())
 
@@ -172,7 +172,7 @@ def test_iceberg_extension_failure_raises_query_backend_error(
 
     connection = FailingConnection()
     monkeypatch.setattr(
-        "parquetdb.duckdb_backend.duckdb.connect",
+        "parqlite.duckdb_backend.duckdb.connect",
         lambda _: connection,
     )
 

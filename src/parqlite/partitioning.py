@@ -16,7 +16,7 @@ from pyiceberg.transforms import (
     YearTransform,
 )
 
-from parquetdb.errors import PartitionError
+from parqlite.errors import PartitionError
 
 
 TransformName = Literal[

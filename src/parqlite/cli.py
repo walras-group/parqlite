@@ -3,15 +3,15 @@ from __future__ import annotations
 import argparse
 from collections.abc import Sequence
 
-from parquetdb.db import connect
+from parqlite.db import connect
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="parquetdb")
+    parser = argparse.ArgumentParser(prog="parqlite")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     ui_parser = subparsers.add_parser("ui", help="Open DuckDB UI")
-    ui_parser.add_argument("path", help="parquetdb root directory")
+    ui_parser.add_argument("path", help="parqlite root directory")
 
     args = parser.parse_args(argv)
 

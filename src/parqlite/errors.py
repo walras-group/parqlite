@@ -1,46 +1,46 @@
-class ParquetDBError(Exception):
-    """Base exception for parquetdb."""
+class ParqliteError(Exception):
+    """Base exception for parqlite."""
 
 
-class TableAlreadyExistsError(ParquetDBError):
+class TableAlreadyExistsError(ParqliteError):
     """Raised when creating a table that already exists."""
 
 
-class TableNotFoundError(ParquetDBError):
+class TableNotFoundError(ParqliteError):
     """Raised when a requested table does not exist."""
 
 
-class NamespaceAlreadyExistsError(ParquetDBError):
+class NamespaceAlreadyExistsError(ParqliteError):
     """Raised when creating a namespace that already exists."""
 
 
-class NamespaceNotFoundError(ParquetDBError):
+class NamespaceNotFoundError(ParqliteError):
     """Raised when a requested namespace does not exist."""
 
 
-class SchemaError(ParquetDBError):
+class SchemaError(ParqliteError):
     """Raised when a declared schema is invalid."""
 
 
-class SchemaMismatchError(ParquetDBError):
+class SchemaMismatchError(ParqliteError):
     """Raised when input data does not match a table schema."""
 
 
-class PartitionError(ParquetDBError):
+class PartitionError(ParqliteError):
     """Raised when a partition spec is invalid."""
 
 
-class InputDataError(ParquetDBError):
+class InputDataError(ParqliteError):
     """Raised when input data cannot be read."""
 
 
-class QueryBackendError(ParquetDBError):
+class QueryBackendError(ParqliteError):
     """Raised when the SQL query backend cannot be initialized or used."""
 
 
-class SnapshotError(ParquetDBError):
+class SnapshotError(ParqliteError):
     """Raised when snapshot selection or maintenance fails."""
 
 
-class OrphanFileError(ParquetDBError):
+class OrphanFileError(ParqliteError):
     """Raised when orphan file inspection or removal fails."""

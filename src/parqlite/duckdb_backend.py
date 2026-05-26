@@ -7,9 +7,9 @@ from pathlib import Path
 
 import duckdb
 
-from parquetdb.errors import QueryBackendError, SnapshotError
-from parquetdb.iceberg import DEFAULT_NAMESPACE, IcebergStore, parse_table_name
-from parquetdb.snapshots import SnapshotSelector
+from parqlite.errors import QueryBackendError, SnapshotError
+from parqlite.iceberg import DEFAULT_NAMESPACE, IcebergStore, parse_table_name
+from parqlite.snapshots import SnapshotSelector
 
 
 class DuckDBBackend:
@@ -40,7 +40,7 @@ class DuckDBBackend:
         init_sql = duckdb_ui_init_sql(self._store)
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            init_path = Path(temp_dir) / "parquetdb-duckdb-ui-init.sql"
+            init_path = Path(temp_dir) / "parqlite-duckdb-ui-init.sql"
             init_path.write_text(init_sql, encoding="utf-8")
 
             try:

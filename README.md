@@ -1,9 +1,9 @@
-# parquetdb
+# parqlite
 
 Local-first Python storage library backed by Iceberg metadata, Parquet data
 files, and DuckDB SQL queries.
 
-parquetdb is useful when you want a small local analytical database with:
+parqlite is useful when you want a small local analytical database with:
 
 - Iceberg table metadata and snapshots
 - Parquet data files
@@ -35,7 +35,7 @@ UV_CACHE_DIR=/tmp/uv-cache uv run pytest
 ```python
 import pandas as pd
 
-from parquetdb import connect, month, t
+from parqlite import connect, month, t
 
 db = connect("./data")
 
@@ -79,10 +79,10 @@ rows = db.sql(
 
 ## Connect
 
-`connect(path)` opens or creates a local parquetdb directory.
+`connect(path)` opens or creates a local parqlite directory.
 
 ```python
-from parquetdb import connect
+from parqlite import connect
 
 db = connect("./data")
 ```
@@ -103,10 +103,10 @@ db.close()
 
 ## Schemas
 
-Use `parquetdb.types` helpers for schemas:
+Use `parqlite.types` helpers for schemas:
 
 ```python
-from parquetdb import t
+from parqlite import t
 
 schema = {
     "id": t.long,
@@ -146,7 +146,7 @@ Input data columns must match the table schema exactly, including column order.
 ## Create Tables
 
 ```python
-from parquetdb import bucket, day, hour, identity, month, truncate, year
+from parqlite import bucket, day, hour, identity, month, truncate, year
 
 db.create_table(
     "events",
@@ -186,11 +186,11 @@ maintenance-related properties. See the Apache Iceberg configuration docs for
 the complete current table property reference:
 https://iceberg.apache.org/docs/latest/configuration/#table-properties
 
-parquetdb exports `IcebergTablePropertyKey` as a `Literal[...]` type alias for
+parqlite exports `IcebergTablePropertyKey` as a `Literal[...]` type alias for
 the official static Iceberg table property keys:
 
 ```python
-from parquetdb import IcebergTablePropertyKey, TablePropertyValue
+from parqlite import IcebergTablePropertyKey, TablePropertyValue
 
 props: dict[IcebergTablePropertyKey, TablePropertyValue] = {
     "history.expire.max-snapshot-age-ms": 7 * 24 * 60 * 60 * 1000,
@@ -201,9 +201,9 @@ props: dict[IcebergTablePropertyKey, TablePropertyValue] = {
 The `create_table(..., properties=...)` and `set_table_properties(...)` APIs
 still accept general string keys. That is intentional because Iceberg also has
 column-scoped keys such as `write.metadata.metrics.column.<column_name>` and
-parquetdb allows custom informational keys such as `custom.owner`.
+parqlite allows custom informational keys such as `custom.owner`.
 
-`parquetdb.keys` and `parquetdb.version_by` are reserved. Set them through
+`parqlite.keys` and `parqlite.version_by` are reserved. Set them through
 `keys=` and `version_by=`, not through `properties=`.
 
 ## Write Data
@@ -248,7 +248,7 @@ df = relation.df()
 one = db.sql("select count(*) from items").fetchone()[0]
 ```
 
-parquetdb refreshes DuckDB views against the latest Iceberg `metadata.json` on
+parqlite refreshes DuckDB views against the latest Iceberg `metadata.json` on
 each SQL call.
 
 ## Table Introspection
@@ -331,7 +331,7 @@ print(current.operation)
 Use snapshot selectors from the top-level package:
 
 ```python
-from parquetdb import as_of, ref, snapshot_id
+from parqlite import as_of, ref, snapshot_id
 
 first = db.snapshots("items")[0]
 
@@ -370,7 +370,7 @@ Datetime selectors must be timezone-aware.
 Create a tag for a snapshot:
 
 ```python
-from parquetdb import ref, snapshot_id
+from parqlite import ref, snapshot_id
 
 current = db.current_snapshot("items")
 db.create_tag("items", "stable", at=snapshot_id(current.snapshot_id))
@@ -446,7 +446,7 @@ result = db.expire_snapshots(
 )
 ```
 
-If both `older_than` and `snapshot_ids` are omitted, parquetdb uses Iceberg table
+If both `older_than` and `snapshot_ids` are omitted, parqlite uses Iceberg table
 properties:
 
 ```python
@@ -525,7 +525,7 @@ preview = db.remove_orphan_files(
 )
 ```
 
-`location` must be under the table root. parquetdb currently supports local
+`location` must be under the table root. parqlite currently supports local
 file-backed tables only for orphan cleanup.
 
 There is no `vacuum` or `optimize` API. Use the Iceberg-native sequence instead:
@@ -580,10 +580,10 @@ and insert deterministic sample factor values:
 UV_CACHE_DIR=/tmp/uv-cache uv run python examples/write_cn_market.py
 ```
 
-Use `PARQUETDB_EXAMPLE_ROWS` to run a smaller sample:
+Use `PARQLITE_EXAMPLE_ROWS` to run a smaller sample:
 
 ```bash
-PARQUETDB_EXAMPLE_ROWS=10000 UV_CACHE_DIR=/tmp/uv-cache uv run python examples/write_cn_market.py
+PARQLITE_EXAMPLE_ROWS=10000 UV_CACHE_DIR=/tmp/uv-cache uv run python examples/write_cn_market.py
 ```
 
 Read the `factor` table and run sample analytical queries:
@@ -600,12 +600,12 @@ UV_CACHE_DIR=/tmp/uv-cache uv run python examples/read_version.py
 
 ## Storage And SQL Notes
 
-parquetdb uses PyIceberg for local catalog management, table creation, appends,
+parqlite uses PyIceberg for local catalog management, table creation, appends,
 overwrites, drops, snapshots, table properties, and metadata commits. Table data
 is stored as Parquet files under the local warehouse.
 
 SQL reads use DuckDB's Iceberg extension. The first SQL query for a database may
 need DuckDB to install the `iceberg` extension into DuckDB's default user
 extension directory. If that directory is not writable, or DuckDB cannot
-download or load the extension, parquetdb raises a query backend error that
+download or load the extension, parqlite raises a query backend error that
 includes DuckDB's original error.

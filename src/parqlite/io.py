@@ -9,7 +9,7 @@ import pyarrow.csv as pacsv
 import pyarrow.json as pajson
 import pyarrow.parquet as pq
 
-from parquetdb.errors import InputDataError, SchemaMismatchError
+from parqlite.errors import InputDataError, SchemaMismatchError
 
 
 def to_arrow_table(data: Any, target_schema: pa.Schema) -> pa.Table:

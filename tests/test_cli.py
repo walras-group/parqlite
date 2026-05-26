@@ -1,6 +1,6 @@
 import pytest
 
-from parquetdb.cli import main
+from parqlite.cli import main
 
 
 def test_main_dispatches_ui_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -17,7 +17,7 @@ def test_main_dispatches_ui_subcommand(monkeypatch: pytest.MonkeyPatch) -> None:
         calls.append(("connect", path))
         return FakeDB()
 
-    monkeypatch.setattr("parquetdb.cli.connect", fake_connect)
+    monkeypatch.setattr("parqlite.cli.connect", fake_connect)
 
     main(["ui", "./data"])
 
@@ -45,7 +45,7 @@ def test_main_closes_db_when_open_ui_raises(
         calls.append(("connect", path))
         return FakeDB()
 
-    monkeypatch.setattr("parquetdb.cli.connect", fake_connect)
+    monkeypatch.setattr("parqlite.cli.connect", fake_connect)
 
     with pytest.raises(RuntimeError, match="boom"):
         main(["ui", "./data"])

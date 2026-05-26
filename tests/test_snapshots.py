@@ -9,8 +9,8 @@ from urllib.parse import unquote, urlparse
 import pandas as pd
 import pytest
 
-from parquetdb import as_of, connect, ref, snapshot_id
-from parquetdb.errors import OrphanFileError, SnapshotError
+from parqlite import as_of, connect, ref, snapshot_id
+from parqlite.errors import OrphanFileError, SnapshotError
 
 
 def test_snapshots_and_current_snapshot(tmp_path: Path) -> None:

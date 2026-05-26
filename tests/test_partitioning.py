@@ -1,4 +1,4 @@
-from parquetdb.partitioning import (
+from parqlite.partitioning import (
     bucket,
     build_partition_spec,
     day,
@@ -7,7 +7,7 @@ from parquetdb.partitioning import (
     truncate,
     year,
 )
-from parquetdb.schema import normalize_schema, to_iceberg_schema
+from parqlite.schema import normalize_schema, to_iceberg_schema
 
 
 def test_partition_transforms_build_iceberg_spec() -> None:

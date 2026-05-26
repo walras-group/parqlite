@@ -19,7 +19,7 @@ from pyiceberg.schema import Schema
 from pyiceberg.table import Table, TableProperties
 from pyiceberg.utils.properties import property_as_int
 
-from parquetdb.errors import (
+from parqlite.errors import (
     NamespaceAlreadyExistsError,
     NamespaceNotFoundError,
     OrphanFileError,
@@ -28,7 +28,7 @@ from parquetdb.errors import (
     TableAlreadyExistsError,
     TableNotFoundError,
 )
-from parquetdb.snapshots import (
+from parqlite.snapshots import (
     ExpireSnapshotsResult,
     OrphanFile,
     RemoveOrphanFilesResult,
@@ -43,8 +43,8 @@ from parquetdb.snapshots import (
 
 DEFAULT_NAMESPACE = "default"
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-KEYS_PROPERTY = "parquetdb.keys"
-VERSION_BY_PROPERTY = "parquetdb.version_by"
+KEYS_PROPERTY = "parqlite.keys"
+VERSION_BY_PROPERTY = "parqlite.version_by"
 RESERVED_PROPERTIES = frozenset({KEYS_PROPERTY, VERSION_BY_PROPERTY})
 DEFAULT_ORPHAN_RETENTION = timedelta(days=3)
 
@@ -127,9 +127,7 @@ class IcebergStore:
             )
         except IcebergNamespaceNotFoundError as exc:
             namespace, _ = parse_table_name(name)
-            raise NamespaceNotFoundError(
-                f"namespace not found: {namespace}"
-            ) from exc
+            raise NamespaceNotFoundError(f"namespace not found: {namespace}") from exc
         except IcebergTableAlreadyExistsError as exc:
             raise TableAlreadyExistsError(f"table already exists: {name}") from exc
 
@@ -407,7 +405,7 @@ class IcebergStore:
 
     def _load_catalog(self) -> SqlCatalog:
         return load_catalog(
-            "parquetdb",
+            "parqlite",
             **{
                 "type": "sql",
                 "uri": f"sqlite:///{self.catalog_path.as_posix()}",

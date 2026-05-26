@@ -5,27 +5,27 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from parquetdb.duckdb_backend import DuckDBBackend
-from parquetdb.errors import SchemaError
-from parquetdb.iceberg import (
+from parqlite.duckdb_backend import DuckDBBackend
+from parqlite.errors import SchemaError
+from parqlite.iceberg import (
     KEYS_PROPERTY,
     RESERVED_PROPERTIES,
     VERSION_BY_PROPERTY,
     IcebergStore,
     parse_table_name,
 )
-from parquetdb.io import to_arrow_table
-from parquetdb.partitioning import PartitionTransform, build_partition_spec
-from parquetdb.properties import TablePropertyKey, TablePropertyValue
-from parquetdb.schema import normalize_schema, schema_to_dict, to_iceberg_schema
-from parquetdb.snapshots import (
+from parqlite.io import to_arrow_table
+from parqlite.partitioning import PartitionTransform, build_partition_spec
+from parqlite.properties import TablePropertyKey, TablePropertyValue
+from parqlite.schema import normalize_schema, schema_to_dict, to_iceberg_schema
+from parqlite.snapshots import (
     ExpireSnapshotsResult,
     RemoveOrphanFilesResult,
     SnapshotRef,
     SnapshotSelector,
     TableSnapshot,
 )
-from parquetdb.types import SchemaType
+from parqlite.types import SchemaType
 
 
 def connect(path: str | Path) -> DB:

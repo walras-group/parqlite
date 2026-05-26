@@ -1,12 +1,12 @@
-from parquetdb import types as t
-from parquetdb.db import DB, connect
-from parquetdb.partitioning import bucket, day, hour, identity, month, truncate, year
-from parquetdb.properties import (
+from parqlite import types as t
+from parqlite.db import DB, connect
+from parqlite.partitioning import bucket, day, hour, identity, month, truncate, year
+from parqlite.properties import (
     IcebergTablePropertyKey,
     TablePropertyKey,
     TablePropertyValue,
 )
-from parquetdb.snapshots import (
+from parqlite.snapshots import (
     ExpireSnapshotsResult,
     OrphanFile,
     RemoveOrphanFilesResult,

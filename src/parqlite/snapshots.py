@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from parquetdb.errors import SnapshotError
+from parqlite.errors import SnapshotError
 
 
 @dataclass(frozen=True, slots=True)

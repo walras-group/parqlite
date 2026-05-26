@@ -25,8 +25,8 @@ from pyiceberg.types import (
     UUIDType,
 )
 
-from parquetdb.errors import SchemaError
-from parquetdb.types import SchemaType
+from parqlite.errors import SchemaError
+from parqlite.types import SchemaType
 
 
 @dataclass(frozen=True)

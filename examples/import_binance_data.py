@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 import pandas as pd
 
-from parquetdb import connect, month
+from parqlite import connect, month
 
 
 DATA_DIR = Path(__file__).resolve().parent

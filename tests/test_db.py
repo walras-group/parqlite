@@ -6,15 +6,15 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from parquetdb import IcebergTablePropertyKey, connect, types as t
-from parquetdb.errors import (
+from parqlite import IcebergTablePropertyKey, connect, types as t
+from parqlite.errors import (
     NamespaceAlreadyExistsError,
     NamespaceNotFoundError,
     SchemaError,
     SchemaMismatchError,
 )
-from parquetdb.iceberg import KEYS_PROPERTY, VERSION_BY_PROPERTY
-from parquetdb.partitioning import month
+from parqlite.iceberg import KEYS_PROPERTY, VERSION_BY_PROPERTY
+from parqlite.partitioning import month
 
 
 def test_exports_iceberg_table_property_key_literal() -> None:
@@ -134,9 +134,9 @@ def test_namespace_table_can_be_created_appended_and_queried(tmp_path: Path) -> 
     reconnected = connect(tmp_path)
 
     assert reconnected.tables() == ["binance.klines"]
-    assert reconnected.sql(
-        "select opentime from binance.klines"
-    ).fetchall() == [(1769904000000,)]
+    assert reconnected.sql("select opentime from binance.klines").fetchall() == [
+        (1769904000000,)
+    ]
 
 
 def test_create_table_requires_existing_namespace(tmp_path: Path) -> None:

@@ -1,8 +1,8 @@
 import pytest
 
-from parquetdb import types as t
-from parquetdb.errors import SchemaError
-from parquetdb.schema import normalize_schema, to_iceberg_schema
+from parqlite import types as t
+from parqlite.errors import SchemaError
+from parqlite.schema import normalize_schema, to_iceberg_schema
 
 
 def test_supports_v1_scalar_types() -> None:

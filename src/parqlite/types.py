@@ -3,7 +3,7 @@ from __future__ import annotations
 import builtins
 from dataclasses import dataclass
 
-from parquetdb.errors import SchemaError
+from parqlite.errors import SchemaError
 
 
 @dataclass(frozen=True)
