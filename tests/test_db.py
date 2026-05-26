@@ -13,6 +13,8 @@ from parqlite.errors import (
     NamespaceNotFoundError,
     SchemaError,
     SchemaMismatchError,
+    TableAlreadyExistsError,
+    TableNotFoundError,
 )
 from parqlite.iceberg import KEYS_PROPERTY, VERSION_BY_PROPERTY
 from parqlite.partitioning import month
@@ -144,6 +146,35 @@ def test_create_table_accepts_schema_type_helpers(tmp_path: Path) -> None:
     }
 
 
+def test_create_table_raises_when_table_already_exists(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table("items", {"id": "long"})
+
+    with pytest.raises(TableAlreadyExistsError, match="table already exists: items"):
+        db.create_table("items", {"id": "long"})
+
+
+def test_create_table_if_not_exists_noops_for_existing_table(
+    tmp_path: Path,
+) -> None:
+    db = connect(tmp_path)
+    db.create_table(
+        "items",
+        {"id": "long"},
+        properties={"custom.owner": "first"},
+    )
+
+    db.create_table(
+        "items",
+        {"name": "string"},
+        properties={"custom.owner": "second"},
+        if_not_exists=True,
+    )
+
+    assert db.schema("items") == {"id": "long"}
+    assert db.table_properties("items")["custom.owner"] == "first"
+
+
 def test_table_exists_returns_true_for_existing_table(tmp_path: Path) -> None:
     db = connect(tmp_path)
     db.create_table("items", {"id": "long"})
@@ -214,6 +245,17 @@ def test_create_namespace_rejects_existing_namespace(tmp_path: Path) -> None:
         db.create_namespace("binance")
 
 
+def test_create_namespace_if_not_exists_noops_for_existing_namespace(
+    tmp_path: Path,
+) -> None:
+    db = connect(tmp_path)
+
+    db.create_namespace("binance")
+    db.create_namespace("binance", if_not_exists=True)
+
+    assert db.list_namespaces() == ["binance", "default"]
+
+
 def test_list_namespaces_includes_default_and_created_namespaces(
     tmp_path: Path,
 ) -> None:
@@ -261,6 +303,31 @@ def test_drop_namespace_rejects_missing_namespace(tmp_path: Path) -> None:
 
     with pytest.raises(NamespaceNotFoundError, match="namespace not found: binance"):
         db.drop_namespace("binance")
+
+
+def test_drop_namespace_if_exists_noops_for_missing_namespace(
+    tmp_path: Path,
+) -> None:
+    db = connect(tmp_path)
+
+    db.drop_namespace("binance", if_exists=True)
+
+    assert db.list_namespaces() == ["default"]
+
+
+def test_drop_table_rejects_missing_table(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+
+    with pytest.raises(TableNotFoundError, match="table not found: items"):
+        db.drop_table("items")
+
+
+def test_drop_table_if_exists_noops_for_missing_table(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+
+    db.drop_table("items", if_exists=True)
+
+    assert db.tables() == []
 
 
 def test_table_and_namespace_names_must_be_valid_identifiers(tmp_path: Path) -> None:

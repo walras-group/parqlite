@@ -176,6 +176,9 @@ db.create_table(
 )
 ```
 
+Pass `if_not_exists=True` to make creation a no-op when the table already
+exists. Existing table schema, partitioning, and properties are not modified.
+
 Partition helpers:
 
 - `identity("column")`, or pass `"column"` directly in `partition_by`
@@ -271,6 +274,7 @@ Drop a table:
 
 ```python
 db.drop_table("items")
+db.drop_table("items", if_exists=True)
 ```
 
 ## Namespaces
@@ -280,10 +284,12 @@ names such as `binance.klines`.
 
 ```python
 db.create_namespace("binance")
+db.create_namespace("binance", if_not_exists=True)
 
 namespaces = db.list_namespaces()
 
 db.drop_namespace("binance")
+db.drop_namespace("binance", if_exists=True)
 ```
 
 `drop_namespace` only removes empty non-default namespaces.

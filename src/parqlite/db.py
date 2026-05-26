@@ -7,7 +7,13 @@ from types import TracebackType
 from typing import Any
 
 from parqlite.duckdb_backend import DuckDBBackend
-from parqlite.errors import SchemaError
+from parqlite.errors import (
+    NamespaceAlreadyExistsError,
+    NamespaceNotFoundError,
+    SchemaError,
+    TableAlreadyExistsError,
+    TableNotFoundError,
+)
 from parqlite.iceberg import (
     KEYS_PROPERTY,
     RESERVED_PROPERTIES,
@@ -49,14 +55,24 @@ class DB:
     ) -> None:
         self.close()
 
-    def create_namespace(self, name: str) -> None:
-        self._store.create_namespace(name)
+    def create_namespace(self, name: str, *, if_not_exists: bool = False) -> None:
+        try:
+            self._store.create_namespace(name)
+        except NamespaceAlreadyExistsError:
+            if if_not_exists:
+                return
+            raise
 
     def list_namespaces(self) -> list[str]:
         return self._store.list_namespaces()
 
-    def drop_namespace(self, name: str) -> None:
-        self._store.drop_namespace(name)
+    def drop_namespace(self, name: str, *, if_exists: bool = False) -> None:
+        try:
+            self._store.drop_namespace(name)
+        except NamespaceNotFoundError:
+            if if_exists:
+                return
+            raise
 
     def create_table(
         self,
@@ -68,6 +84,8 @@ class DB:
         keys: list[str] | tuple[str, ...] | None = None,
         version_by: str | None = None,
         properties: Mapping[TablePropertyKey, TablePropertyValue] | None = None,
+        *,
+        if_not_exists: bool = False,
     ) -> None:
         parse_table_name(name)
         columns = normalize_schema(schema)
@@ -79,12 +97,17 @@ class DB:
         iceberg_schema = to_iceberg_schema(columns)
         partition_spec = build_partition_spec(iceberg_schema, partition_by)
         table_properties.update(_reserved_properties(keys, version_by))
-        self._store.create_table(
-            name,
-            schema=iceberg_schema,
-            partition_spec=partition_spec,
-            properties=table_properties,
-        )
+        try:
+            self._store.create_table(
+                name,
+                schema=iceberg_schema,
+                partition_spec=partition_spec,
+                properties=table_properties,
+            )
+        except TableAlreadyExistsError:
+            if if_not_exists:
+                return
+            raise
 
     def append(self, name: str, data: Any) -> None:
         table = self._store.load_table(name)
@@ -140,8 +163,13 @@ class DB:
         _validate_reserved_property_conflicts(normalized)
         return self._store.remove_table_properties(table, normalized)
 
-    def drop_table(self, name: str) -> None:
-        self._store.drop_table(name)
+    def drop_table(self, name: str, *, if_exists: bool = False) -> None:
+        try:
+            self._store.drop_table(name)
+        except TableNotFoundError:
+            if if_exists:
+                return
+            raise
 
     def current_snapshot(self, table: str) -> TableSnapshot:
         return self._store.current_snapshot(table)
