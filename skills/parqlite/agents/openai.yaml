@@ -1,0 +1,6 @@
+interface:
+  display_name: "ParqLite"
+  short_description: "Use local Iceberg and DuckDB tables"
+  default_prompt: "Use $parqlite to create and query a local ParqLite analytical dataset."
+policy:
+  allow_implicit_invocation: true
