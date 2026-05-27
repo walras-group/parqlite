@@ -1,15 +1,15 @@
 [project]
 name = "parqlite"
-version = "0.1.3"
+version = "0.1.4"
 description = "Add your description here"
 readme = "README.md"
 authors = [
     { name = "River-Walras", email = "nachuan.shi.quant@gmail.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 dependencies = [
     "duckdb>=1.5.3",
-    "pandas>=3.0.3",
+    "pandas>=2.3.3",
     "pyarrow>=24.0.0",
     "pyiceberg[pyiceberg-core,sql-sqlite]>=0.11.1",
     "pytz>=2026.2",
