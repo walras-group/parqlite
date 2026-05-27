@@ -7,7 +7,7 @@ from zipfile import ZipFile
 
 import pandas as pd
 
-from parqlite import connect, month
+from parqlite import DEFAULT_RETENTION_PROPERTIES, connect, month
 
 
 DATA_DIR = Path(__file__).resolve().parent
@@ -47,12 +47,6 @@ FUNDING_RATE_SCHEMA = {
     "last_funding_rate": "float",
 }
 
-METADATA_RETENTION_PROPERTIES = {
-    "write.metadata.delete-after-commit.enabled": True,
-    "write.metadata.previous-versions-max": 3,
-}
-
-
 def main() -> None:
     kline_zip_paths = _download_archives(KLINE_DATA_URLS)
     funding_rate_zip_paths = _download_archives(FUNDING_RATE_DATA_URLS)
@@ -64,13 +58,13 @@ def main() -> None:
             KLINES_TABLE_NAME,
             schema=KLINE_SCHEMA,
             partition_by=[month("opentime")],
-            properties=METADATA_RETENTION_PROPERTIES,
+            properties=DEFAULT_RETENTION_PROPERTIES,
         )
         db.create_table(
             FUNDING_RATES_TABLE_NAME,
             schema=FUNDING_RATE_SCHEMA,
             partition_by=[month("calc_time")],
-            properties=METADATA_RETENTION_PROPERTIES,
+            properties=DEFAULT_RETENTION_PROPERTIES,
         )
 
         kline_rows = 0

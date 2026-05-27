@@ -2,6 +2,7 @@ from parqlite import types as t
 from parqlite.db import DB, connect
 from parqlite.partitioning import bucket, day, hour, identity, month, truncate, year
 from parqlite.properties import (
+    DEFAULT_RETENTION_PROPERTIES,
     IcebergTablePropertyKey,
     TablePropertyKey,
     TablePropertyValue,
@@ -17,6 +18,7 @@ from parqlite.snapshots import (
 
 __all__ = [
     "DB",
+    "DEFAULT_RETENTION_PROPERTIES",
     "ExpireSnapshotsResult",
     "IcebergTablePropertyKey",
     "OrphanFile",

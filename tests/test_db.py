@@ -6,7 +6,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from parqlite import IcebergTablePropertyKey, connect, types as t
+from parqlite import (
+    DEFAULT_RETENTION_PROPERTIES,
+    IcebergTablePropertyKey,
+    connect,
+    types as t,
+)
 from parqlite.errors import (
     NamespaceAlreadyExistsError,
     NamespaceNotEmptyError,
@@ -23,6 +28,25 @@ from parqlite.partitioning import month
 def test_exports_iceberg_table_property_key_literal() -> None:
     assert "history.expire.max-snapshot-age-ms" in get_args(IcebergTablePropertyKey)
     assert "write.metadata.previous-versions-max" in get_args(IcebergTablePropertyKey)
+
+
+def test_default_retention_properties_can_be_used_on_create_table(
+    tmp_path: Path,
+) -> None:
+    db = connect(tmp_path)
+
+    db.create_table(
+        "items",
+        {"id": "long"},
+        properties=DEFAULT_RETENTION_PROPERTIES,
+    )
+
+    properties = db.table_properties("items")
+
+    assert properties["write.metadata.delete-after-commit.enabled"] == "true"
+    assert properties["write.metadata.previous-versions-max"] == "3"
+    assert properties["commit.manifest-merge.enabled"] == "true"
+    assert properties["history.expire.min-snapshots-to-keep"] == "10"
 
 
 def test_db_context_manager_closes_on_normal_exit(

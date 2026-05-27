@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Literal, TypeAlias
 
 
@@ -83,8 +85,21 @@ IcebergTablePropertyKey: TypeAlias = Literal[
 TablePropertyKey: TypeAlias = IcebergTablePropertyKey | str
 TablePropertyValue: TypeAlias = str | int | bool
 
+DEFAULT_RETENTION_PROPERTIES: Mapping[TablePropertyKey, TablePropertyValue] = (
+    MappingProxyType(
+        {
+            "write.metadata.delete-after-commit.enabled": True,
+            "write.metadata.previous-versions-max": 3,
+            "commit.manifest-merge.enabled": True,
+            "history.expire.max-snapshot-age-ms": 7 * 24 * 60 * 60 * 1000,
+            "history.expire.min-snapshots-to-keep": 10,
+        }
+    )
+)
+
 
 __all__ = [
+    "DEFAULT_RETENTION_PROPERTIES",
     "IcebergTablePropertyKey",
     "TablePropertyKey",
     "TablePropertyValue",
