@@ -4,3 +4,5 @@ crypto/
 examples/.binance-data/
 examples/BTCUSDT-*.csv
 examples/BTCUSDT-*.zip
+.DS_Store
+parqlite-promo*/
