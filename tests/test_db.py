@@ -422,6 +422,145 @@ def test_append_does_not_deduplicate_reserved_keys(tmp_path: Path) -> None:
     assert db.sql("select count(*) from factor_values").fetchone()[0] == 2
 
 
+def test_upsert_inserts_new_keys_and_updates_existing_keys(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table("items", {"id": "long", "name": "string"}, keys=["id"])
+    db.append("items", pd.DataFrame({"id": [1, 2], "name": ["old", "keep"]}))
+
+    result = db.upsert("items", pd.DataFrame({"id": [1, 3], "name": ["new", "add"]}))
+
+    assert result.rows_updated == 1
+    assert result.rows_inserted == 1
+    assert db.sql("select id, name from items order by id").fetchall() == [
+        (1, "new"),
+        (2, "keep"),
+        (3, "add"),
+    ]
+
+
+def test_upsert_supports_composite_keys(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table(
+        "prices",
+        {"symbol": "string", "date": "date", "price": "double"},
+        keys=["symbol", "date"],
+    )
+    db.append(
+        "prices",
+        pd.DataFrame(
+            {
+                "symbol": ["BTC", "ETH"],
+                "date": pd.to_datetime(["2024-01-01", "2024-01-01"]).date,
+                "price": [10.0, 20.0],
+            }
+        ),
+    )
+
+    result = db.upsert(
+        "prices",
+        pd.DataFrame(
+            {
+                "symbol": ["BTC", "BTC"],
+                "date": pd.to_datetime(["2024-01-01", "2024-01-02"]).date,
+                "price": [11.0, 12.0],
+            }
+        ),
+    )
+
+    assert result.rows_updated == 1
+    assert result.rows_inserted == 1
+    assert db.sql(
+        "select symbol, date, price from prices order by symbol, date"
+    ).fetchall() == [
+        ("BTC", pd.Timestamp("2024-01-01").date(), 11.0),
+        ("BTC", pd.Timestamp("2024-01-02").date(), 12.0),
+        ("ETH", pd.Timestamp("2024-01-01").date(), 20.0),
+    ]
+
+
+def test_upsert_deduplicates_input_by_max_version_by(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table(
+        "items",
+        {"id": "long", "version": "long", "name": "string"},
+        keys=["id"],
+        version_by="version",
+    )
+
+    result = db.upsert(
+        "items",
+        pd.DataFrame(
+            {
+                "id": [1, 1, 2],
+                "version": [1, 2, 1],
+                "name": ["old", "new", "added"],
+            }
+        ),
+    )
+
+    assert result.rows_updated == 0
+    assert result.rows_inserted == 2
+    assert db.sql("select id, version, name from items order by id").fetchall() == [
+        (1, 2, "new"),
+        (2, 1, "added"),
+    ]
+
+
+def test_upsert_rejects_duplicate_input_keys_without_version_by(
+    tmp_path: Path,
+) -> None:
+    db = connect(tmp_path)
+    db.create_table("items", {"id": "long", "name": "string"}, keys=["id"])
+
+    with pytest.raises(SchemaError, match="duplicate keys"):
+        db.upsert("items", pd.DataFrame({"id": [1, 1], "name": ["a", "b"]}))
+
+
+def test_upsert_rejects_tied_max_version_by(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table(
+        "items",
+        {"id": "long", "version": "long", "name": "string"},
+        keys=["id"],
+        version_by="version",
+    )
+
+    with pytest.raises(SchemaError, match="tied on max version_by"):
+        db.upsert(
+            "items",
+            pd.DataFrame({"id": [1, 1], "version": [2, 2], "name": ["a", "b"]}),
+        )
+
+
+def test_upsert_requires_keys(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table("items", {"id": "long", "name": "string"})
+
+    with pytest.raises(SchemaError, match="upsert requires table keys"):
+        db.upsert("items", pd.DataFrame({"id": [1], "name": ["a"]}))
+
+
+def test_upsert_validates_reserved_metadata_fields(tmp_path: Path) -> None:
+    db = connect(tmp_path)
+    db.create_table("items", {"id": "long", "version": "long"}, keys=["id"])
+
+    table = db._store.load_table("items")
+    table.transaction().set_properties(
+        {KEYS_PROPERTY: "missing", VERSION_BY_PROPERTY: "also_missing"}
+    ).commit_transaction()
+
+    with pytest.raises(SchemaError, match="key column does not exist"):
+        db.upsert("items", pd.DataFrame({"id": [1], "version": [1]}))
+
+    table = db._store.load_table("items")
+    table.transaction().set_properties(
+        {KEYS_PROPERTY: "id", VERSION_BY_PROPERTY: "also_missing"}
+    ).commit_transaction()
+
+    with pytest.raises(SchemaError, match="version_by column does not exist"):
+        db.upsert("items", pd.DataFrame({"id": [1], "version": [1]}))
+
+
 def test_append_and_overwrite_from_pandas_and_arrow(tmp_path: Path) -> None:
     db = connect(tmp_path)
     db.create_table("items", {"id": "long", "name": "string"})

@@ -6,6 +6,10 @@ from pathlib import Path
 from types import TracebackType
 from typing import Any
 
+import pandas as pd
+import pyarrow as pa
+from pyiceberg.table import UpsertResult
+
 from parqlite.duckdb_backend import DuckDBBackend
 from parqlite.errors import (
     NamespaceAlreadyExistsError,
@@ -118,6 +122,17 @@ class DB:
         table = self._store.load_table(name)
         arrow_table = to_arrow_table(data, table.schema().as_arrow())
         self._store.overwrite(name, arrow_table)
+
+    def upsert(self, name: str, data: Any) -> UpsertResult:
+        table = self._store.load_table(name)
+        schema = table.schema().as_arrow()
+        keys, version_by = _reserved_metadata_for_upsert(
+            table.properties,
+            schema.names,
+        )
+        arrow_table = to_arrow_table(data, schema)
+        deduplicated = _deduplicate_upsert_input(arrow_table, keys, version_by)
+        return self._store.upsert(name, deduplicated, join_cols=keys)
 
     def sql(
         self,
@@ -316,3 +331,78 @@ def _reserved_properties(
     if version_by:
         properties[VERSION_BY_PROPERTY] = version_by
     return properties
+
+
+def _reserved_metadata_for_upsert(
+    properties: Mapping[str, str],
+    column_names: Sequence[str],
+) -> tuple[list[str], str | None]:
+    keys = _parse_keys_property(properties.get(KEYS_PROPERTY))
+    if not keys:
+        raise SchemaError("upsert requires table keys")
+
+    columns = set(column_names)
+    for key in keys:
+        if key not in columns:
+            raise SchemaError(f"key column does not exist in schema: {key}")
+
+    version_by = properties.get(VERSION_BY_PROPERTY)
+    if version_by is not None:
+        if version_by not in columns:
+            raise SchemaError(
+                f"version_by column does not exist in schema: {version_by}"
+            )
+
+    return keys, version_by
+
+
+def _parse_keys_property(value: str | None) -> list[str]:
+    if value is None or value == "":
+        return []
+
+    keys = value.split(",")
+    seen: set[str] = set()
+    for key in keys:
+        if not key:
+            raise SchemaError("keys must be non-empty column names")
+        if key in seen:
+            raise SchemaError(f"duplicate key column: {key}")
+        seen.add(key)
+    return keys
+
+
+def _deduplicate_upsert_input(
+    table: pa.Table,
+    keys: list[str],
+    version_by: str | None,
+) -> pa.Table:
+    if table.num_rows <= 1:
+        return table
+
+    dedup_columns = keys + ([version_by] if version_by is not None else [])
+    dataframe = table.select(dedup_columns).to_pandas()
+
+    if version_by is None:
+        duplicates = dataframe.duplicated(subset=keys, keep=False)
+        if duplicates.any():
+            raise SchemaError("upsert input contains duplicate keys")
+        return table
+
+    selected_indices: list[int] = []
+    for _, group in dataframe.groupby(keys, dropna=False, sort=False):
+        max_value = group[version_by].max()
+        if pd.isna(max_value):
+            max_rows = group[group[version_by].isna()]
+        else:
+            max_rows = group[group[version_by] == max_value]
+
+        if len(max_rows) > 1:
+            raise SchemaError(
+                "upsert input contains duplicate keys tied on max version_by"
+            )
+        selected_indices.append(int(max_rows.index[0]))
+
+    if len(selected_indices) == table.num_rows:
+        return table
+
+    return table.take(pa.array(selected_indices, type=pa.int64()))

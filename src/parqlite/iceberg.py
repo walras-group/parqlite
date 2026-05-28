@@ -17,7 +17,7 @@ from pyiceberg.exceptions import (
     TableAlreadyExistsError as IcebergTableAlreadyExistsError,
 )
 from pyiceberg.schema import Schema
-from pyiceberg.table import Table, TableProperties
+from pyiceberg.table import Table, TableProperties, UpsertResult
 from pyiceberg.utils.properties import property_as_int
 
 from parqlite.errors import (
@@ -172,6 +172,10 @@ class IcebergStore:
     def overwrite(self, name: str, table: pa.Table) -> None:
         iceberg_table = self.load_table(name)
         iceberg_table.overwrite(table)
+
+    def upsert(self, name: str, table: pa.Table, join_cols: list[str]) -> UpsertResult:
+        iceberg_table = self.load_table(name)
+        return iceberg_table.upsert(table, join_cols=join_cols)
 
     def drop_table(self, name: str) -> None:
         try:

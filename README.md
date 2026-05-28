@@ -8,13 +8,13 @@ parqlite is useful when you want a small local analytical database with:
 - Iceberg table metadata and snapshots
 - Parquet data files
 - DuckDB SQL reads
-- explicit append and full-table overwrite writes
+- explicit append, upsert, and full-table overwrite writes
 - snapshot time travel, tags, rollback, and maintenance helpers
 
-v1 intentionally stays small. It does not implement `write`, `upsert`, `merge`,
-`delete`, or schema evolution. `keys` and `version_by` are stored as reserved
-table metadata for future deduplication features, but they do not enforce
-uniqueness in v1.
+v1 intentionally stays small. It does not implement `write`, `merge`, `delete`,
+or schema evolution. `keys` and `version_by` are reserved table metadata used by
+explicit `upsert(...)`; `append(...)` always keeps Iceberg's native append
+semantics and does not enforce uniqueness.
 
 ## Install
 
@@ -53,7 +53,7 @@ db.create_table(
     version_by="updated_at",
 )
 
-db.append(
+db.upsert(
     "factor_values",
     pd.DataFrame(
         {
@@ -214,11 +214,14 @@ column-scoped keys such as `write.metadata.metrics.column.<column_name>` and
 parqlite allows custom informational keys such as `custom.owner`.
 
 `parqlite.keys` and `parqlite.version_by` are reserved. Set them through
-`keys=` and `version_by=`, not through `properties=`.
+`keys=` and `version_by=`, not through `properties=`. `keys` are used by
+`upsert(...)` to match existing rows. `version_by` resolves duplicates inside a
+single upsert input by keeping the row with the largest version value.
 
 ## Write Data
 
-`append(table, data)` appends records and creates a new Iceberg snapshot.
+`append(table, data)` appends records and creates a new Iceberg snapshot. It
+does not deduplicate records, even when the table has `keys`.
 
 ```python
 import pandas as pd
@@ -230,6 +233,39 @@ db.append("items", "./more_items.parquet")
 db.append("items", "./more_items.csv")
 db.append("items", "./more_items.jsonl")
 ```
+
+`upsert(table, data)` requires the table to have `keys`. It first validates the
+input against the table schema, then uses those keys to update matching rows and
+insert new rows through PyIceberg's native upsert support.
+
+```python
+db.create_table(
+    "items",
+    {"id": "long", "name": "string", "updated_at": "timestamp"},
+    keys=["id"],
+    version_by="updated_at",
+)
+
+result = db.upsert(
+    "items",
+    pd.DataFrame(
+        {
+            "id": [1, 1, 2],
+            "name": ["older", "newer", "new"],
+            "updated_at": pd.to_datetime(
+                ["2024-01-01 09:00", "2024-01-01 10:00", "2024-01-01 11:00"]
+            ),
+        }
+    ),
+)
+
+print(result.rows_updated, result.rows_inserted)
+```
+
+If `version_by` is set, duplicate keys inside the input keep the row with the
+largest `version_by` value. If multiple rows tie for that maximum, `upsert`
+raises `SchemaError`. If `version_by` is not set, duplicate keys inside the
+input also raise `SchemaError`.
 
 Supported file inputs:
 
@@ -652,8 +688,8 @@ UV_CACHE_DIR=/tmp/uv-cache uv run python examples/read_version.py
 ## Storage And SQL Notes
 
 parqlite uses PyIceberg for local catalog management, table creation, appends,
-overwrites, drops, snapshots, table properties, and metadata commits. Table data
-is stored as Parquet files under the local warehouse.
+upserts, overwrites, drops, snapshots, table properties, and metadata commits.
+Table data is stored as Parquet files under the local warehouse.
 
 SQL reads use DuckDB's Iceberg extension. The first SQL query for a database may
 need DuckDB to install the `iceberg` extension into DuckDB's default user

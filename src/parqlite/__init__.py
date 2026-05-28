@@ -15,6 +15,7 @@ from parqlite.snapshots import (
     ref,
     snapshot_id,
 )
+from pyiceberg.table import UpsertResult
 
 __all__ = [
     "DB",
@@ -25,6 +26,7 @@ __all__ = [
     "RemoveOrphanFilesResult",
     "TablePropertyKey",
     "TablePropertyValue",
+    "UpsertResult",
     "as_of",
     "bucket",
     "connect",

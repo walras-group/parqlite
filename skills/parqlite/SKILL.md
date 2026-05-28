@@ -1,6 +1,6 @@
 ---
 name: parqlite
-description: Use when an agent needs to create, query, maintain, or explain local-first analytical datasets with ParqLite, including its Python API, CLI, Iceberg-backed snapshots, DuckDB SQL reads, schema definitions, partitioning, time travel, tags, rollback, and cleanup workflows.
+description: Use when an agent needs to create, query, write, maintain, or explain local-first analytical datasets with ParqLite, including its Python API, CLI, append/upsert/overwrite writes, Iceberg-backed snapshots, DuckDB SQL reads, schema definitions, partitioning, time travel, tags, rollback, and cleanup workflows.
 ---
 
 # ParqLite
@@ -35,7 +35,7 @@ with connect("./data") as db:
         if_not_exists=True,
     )
 
-    db.append(
+    db.upsert(
         "factor_values",
         pd.DataFrame(
             {
@@ -86,6 +86,7 @@ db.schema("items")
 db.table_properties("items")
 
 db.append("items", dataframe_or_arrow_table_or_file_path)
+db.upsert("items", dataframe_or_arrow_table_or_file_path)
 db.overwrite("items", replacement_data)
 db.sql("select id, name from items order by id").df()
 
@@ -101,7 +102,7 @@ Use `parqlite.types` through the exported `t` alias:
 - Parameterized: `t.decimal(precision, scale)`, `t.fixed(length)`
 - Raw Iceberg type strings are accepted, but typed helpers are clearer.
 
-Input data for `append` and `overwrite` can be a `pandas.DataFrame`, `pyarrow.Table`, or a path ending in `.parquet`, `.csv`, `.json`, `.jsonl`, or `.ndjson`.
+Input data for `append`, `upsert`, and `overwrite` can be a `pandas.DataFrame`, `pyarrow.Table`, or a path ending in `.parquet`, `.csv`, `.json`, `.jsonl`, or `.ndjson`.
 
 Column names and column order must exactly match the table schema. ParqLite safely casts input to the table schema and raises schema/input errors if the data cannot be cast.
 
@@ -130,7 +131,11 @@ db.create_table(
 
 Supported partition transforms: `identity("column")`, direct `"column"`, `year`, `month`, `day`, `hour`, `bucket(column, num_buckets)`, and `truncate(column, width)`.
 
-`keys` and `version_by` are reserved metadata for future deduplication features. They do not enforce uniqueness in v1. Set them through `create_table(..., keys=..., version_by=...)`, not through table properties.
+`keys` and `version_by` are reserved metadata used by explicit `upsert(...)`. Set them through `create_table(..., keys=..., version_by=...)`, not through table properties.
+
+`append(...)` keeps Iceberg's native append semantics and does not deduplicate, even when a table has `keys`.
+
+`upsert(...)` requires table `keys`. It updates rows matching those keys and inserts new rows through PyIceberg's native upsert support. When `version_by` is set, duplicate keys inside one input keep the row with the largest `version_by` value. If the maximum version ties, ParqLite raises `SchemaError`; without `version_by`, duplicate keys inside the input also raise `SchemaError`.
 
 ## SQL And CLI
 
@@ -196,8 +201,10 @@ Always preview orphan cleanup with `dry_run=True` before deleting. By default, o
 
 ## Constraints To Preserve
 
-- ParqLite v1 supports explicit append and full-table overwrite writes.
-- Do not implement or imply row-level `write`, `upsert`, `merge`, `delete`, schema evolution, `vacuum`, or `optimize` APIs unless the codebase has changed.
+- ParqLite v1 supports explicit append, upsert, and full-table overwrite writes.
+- `append(...)` must remain pure append; do not make it silently perform deduplication or merge behavior.
+- `upsert(...)` must use table `keys` and PyIceberg's native upsert path; do not invent a custom write protocol.
+- Do not implement or imply row-level `write`, `merge`, `delete`, schema evolution, `vacuum`, or `optimize` APIs unless the codebase has changed.
 - `drop_namespace` only removes empty non-default namespaces.
 - `default` namespace always exists.
 - Keep local store paths explicit. A ParqLite root contains `catalog.db` and `warehouse/`.
